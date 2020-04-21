@@ -20,7 +20,7 @@ void PlayFile();
 //#define DEBUG_SHOW_SEED
 
 #define RANDOM_SEED 133742069 // Could make this a timestamp or something else
-#define FIXED_XOR 1337 // Optional, use a fixed XOR char so that it's easier to encrypt and decrypt
+//#define FIXED_XOR 1337 // Optional, use a fixed XOR char so that it's easier to encrypt and decrypt
 
 void PrintLogo()
 {
@@ -161,17 +161,7 @@ std::filesystem::path SelectFile()
 	}
 }
 
-struct ID3Header
-{
-	char tag[3];
-	char title[30];
-	char artist[30];
-	char album[30];
-	char year[4];
-	char comment[30];
-	char genre[1];
-};
-
+// WAV header
 struct RIFFChunk
 {
 	char id[4];
@@ -207,6 +197,7 @@ struct WAVHeader
 	DataChunk data;
 };
 
+// Crypto
 void EncryptFile()
 {
 	// Fetch file to use
@@ -390,6 +381,7 @@ void DecryptFile()
 	std::cout << "Successfully decrypted " << file.filename() << " into " << outputPath.string().c_str() << "!" << std::endl;
 }
 
+// TODO: Playback
 void PlayFile()
 {
 	// Fetch file to use
