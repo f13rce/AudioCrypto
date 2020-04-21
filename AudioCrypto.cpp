@@ -20,6 +20,7 @@ void PlayFile();
 //#define DEBUG_SHOW_SEED
 
 #define RANDOM_SEED 133742069 // Could make this a timestamp or something else
+#define FIXED_XOR 1337 // Optional, use a fixed XOR char so that it's easier to encrypt and decrypt
 
 void PrintLogo()
 {
@@ -272,13 +273,17 @@ void EncryptFile()
 
 	for (size_t i = sizeof(WAVHeader); i < fileBytes.size(); ++i)
 	{
-		char seedChar = char(rand());
-
-#ifdef DEBUG_SHOW_SEED
-		std::cout << std::to_string(int32_t(seedChar)) << " ";
+#ifdef FIXED_XOR
+		char xorChar = char(FIXED_XOR);
+#else
+		char xorChar = char(rand());
 #endif
 
-		fileBytes[i] ^= seedChar;
+#ifdef DEBUG_SHOW_SEED
+		std::cout << std::to_string(int32_t(xorChar)) << " ";
+#endif
+
+		fileBytes[i] ^= xorChar;
 	}
 
 #ifdef DEBUG_SHOW_SEED
@@ -356,7 +361,11 @@ void DecryptFile()
 	srand(RANDOM_SEED);
 	for (size_t i = sizeof(WAVHeader); i < fileBytes.size(); ++i)
 	{
+#ifdef FIXED_XOR
+		fileBytes[i] ^= char(FIXED_XOR);
+#else
 		fileBytes[i] ^= char(rand());
+#endif
 	}
 
 	// Save to file
