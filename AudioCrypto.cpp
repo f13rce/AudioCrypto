@@ -172,10 +172,8 @@ struct RIFFChunk
 struct FMTChunk
 {
 	char id[4];
-	//char size[4];
 	uint32_t size;
 	char audioformat[2];
-	//char numChannels[2];
 	uint16_t numChannels;
 	char sampleRate[4];
 	char byteRate[4];
@@ -186,7 +184,6 @@ struct FMTChunk
 struct DataChunk
 {
 	char id[4];
-	//char size[4];
 	uint32_t size;
 };
 
