@@ -1,5 +1,10 @@
-// AudioCrypto.cpp : This file contains the 'main' function. Program execution begins and ends there.
-//
+/*
+	AUDIO CRYPTO
+		WAV encrypter and decrypter
+		Made by f13rce
+
+	Compile using C++17 or later
+*/
 
 #include <iostream>
 #include <string>
