@@ -167,20 +167,20 @@ std::filesystem::path SelectFile()
 struct RIFFChunk
 {
 	char id[4];
-	char size[4];
+	uint32_t size;
 	char format[4];
 };
 
 struct FMTChunk
 {
-	char id[4];
+	uint32_t id;
 	uint32_t size;
-	char audioformat[2];
+	uint16_t audioformat;
 	uint16_t numChannels;
-	char sampleRate[4];
-	char byteRate[4];
-	char blockAlign[2];
-	char bitsPerSample[2];
+	uint32_t sampleRate;
+	uint32_t byteRate;
+	uint16_t blockAlign;
+	uint16_t bitsPerSample;
 };
 
 struct DataChunk
@@ -195,6 +195,44 @@ struct WAVHeader
 	FMTChunk fmt;
 	DataChunk data;
 };
+
+void PrintHeader(const std::string& acFileBuffer)
+{
+	WAVHeader header;
+	memcpy(&header, &acFileBuffer[0], sizeof(WAVHeader));
+
+	std::cout << "--- WAV HEADER ---" << std::endl;
+
+	std::string tmp;
+
+	// RIFF
+	std::cout << "\tRIFF" << std::endl;
+	tmp = header.riff.id;
+	tmp.resize(sizeof(header.riff.id));
+	std::cout << "\t\t" << "ID: "<< "\t\t" << tmp << std::endl;
+	std::cout << "\t\t" << "Size: "<< "\t\t" << header.riff.size << std::endl;
+	tmp = header.riff.format;
+	tmp.resize(sizeof(header.riff.format));
+	std::cout << "\t\t" << "Format: "<< "\t" << tmp << std::endl;
+
+	// FMT
+	std::cout << "\tFMT" << std::endl;
+	std::cout << "\t\t" << "ID: "<< "\t\t" << header.fmt.id << std::endl;
+	std::cout << "\t\t" << "Size: "<< "\t\t" << header.fmt.size << std::endl;
+	std::cout << "\t\t" << "audioFormat: "<< "\t" << header.fmt.audioformat << std::endl;
+	std::cout << "\t\t" << "numChannels: "<< "\t" << header.fmt.numChannels << std::endl;
+	std::cout << "\t\t" << "sampleRate: "<< "\t" << header.fmt.sampleRate << std::endl;
+	std::cout << "\t\t" << "byteRate: "<< "\t" << header.fmt.byteRate << std::endl;
+	std::cout << "\t\t" << "blockAlign: "<< "\t" << header.fmt.blockAlign << std::endl;
+	std::cout << "\t\t" << "bitsPerSample: "<< "\t" << header.fmt.bitsPerSample << std::endl;
+
+	// Data
+	std::cout << "\tData" << std::endl;
+	tmp = header.data.id;
+	tmp.resize(sizeof(header.data.id));
+	std::cout << "\t\t" << "ID: "<< "\t\t" << tmp << std::endl;
+	std::cout << "\t\t" << "Size: "<< "\t\t" << header.data.size << std::endl;
+}
 
 // Crypto
 void EncryptFile()
@@ -260,6 +298,8 @@ void EncryptFile()
 #ifdef DEBUG_SHOW_SEED
 	std::cout << "Encryption seed:" << std::endl;
 #endif
+
+	PrintHeader(fileBytes);
 
 	for (size_t i = sizeof(WAVHeader); i < fileBytes.size(); ++i)
 	{
@@ -348,6 +388,9 @@ void DecryptFile()
 
 	// OTP here
 	std::cout << "Decrypting file..." << std::endl;
+
+	PrintHeader(fileBytes);
+
 	srand(RANDOM_SEED);
 	for (size_t i = sizeof(WAVHeader); i < fileBytes.size(); ++i)
 	{
