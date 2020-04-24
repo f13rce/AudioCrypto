@@ -423,7 +423,6 @@ void DecryptFile()
 	std::cout << "Successfully decrypted " << file.filename() << " into " << outputPath.string().c_str() << "!" << std::endl;
 }
 
-// TODO: Playback
 void DisplayHeader()
 {
 	// Fetch file to use
