@@ -88,6 +88,8 @@ void MainMenu()
 		{
 			std::cout << "Ermm... Try again." << std::endl << std::endl;
 		}
+
+		system("pause");
 	}
 
 	std::cout << "Goodbye!" << std::endl;
