@@ -14,7 +14,7 @@ void MainMenu();
 
 void EncryptFile();
 void DecryptFile();
-void PlayFile();
+void DisplayHeader();
 
 //#define DEBUG_SHOW_FILE_BYTES 256
 //#define DEBUG_SHOW_SEED
@@ -61,7 +61,7 @@ void MainMenu()
 		std::cout << "What would you like to do?" << std::endl;
 		std::cout << "\t1: Encrypt audio" << std::endl;
 		std::cout << "\t2: Decrypt audio" << std::endl;
-		std::cout << "\t3: Play audio" << std::endl;
+		std::cout << "\t3: Display audio header" << std::endl;
 		std::cout << "Alternatively, type 'exit' to exit." << std::endl;
 
 		std::cout << std::endl << "Select option [1, 2 or 3]: ";
@@ -82,7 +82,7 @@ void MainMenu()
 		}
 		else if (answer == "3")
 		{
-			PlayFile();
+			DisplayHeader();
 		}
 		else
 		{
@@ -424,7 +424,7 @@ void DecryptFile()
 }
 
 // TODO: Playback
-void PlayFile()
+void DisplayHeader()
 {
 	// Fetch file to use
 	std::filesystem::path file;
@@ -435,5 +435,24 @@ void PlayFile()
 		{
 			break;
 		}
-	}
+	}	
+
+	// Open file reader
+	std::ifstream inputFile(file.string().c_str(), std::ios::binary);
+	std::string fileBytes;
+
+	// Get file size
+	std::streampos begin, end;
+	begin = inputFile.tellg();
+	inputFile.seekg(0, std::ios::end);
+	end = inputFile.tellg();
+
+	// Read file data
+	std::stringstream fileData;
+	inputFile.seekg(0);
+	fileData << inputFile.rdbuf();
+	fileBytes = fileData.str();
+
+	// Print result
+	PrintHeader(fileBytes);
 }
