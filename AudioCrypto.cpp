@@ -20,12 +20,19 @@ void MainMenu();
 void EncryptFile();
 void DecryptFile();
 void DisplayHeader();
+void EncodeAudio();
+void DecodeAudio();
 
 //#define DEBUG_SHOW_FILE_BYTES 256
 //#define DEBUG_SHOW_SEED
 
 #define RANDOM_SEED 133742069 // Could make this a timestamp or something else
 //#define FIXED_XOR 1337 // Optional, use a fixed XOR char so that it's easier to encrypt and decrypt
+
+// Encoding
+#define BITS_PER_BYTE 8
+#define LENGTH_PER_BIT 512
+#define BYTES_PER_SAMPLE 8192
 
 void PrintLogo()
 {
@@ -67,9 +74,11 @@ void MainMenu()
 		std::cout << "\t1: Encrypt audio" << std::endl;
 		std::cout << "\t2: Decrypt audio" << std::endl;
 		std::cout << "\t3: Display audio header" << std::endl;
+		std::cout << "\t4: Encode audio" << std::endl;
+		std::cout << "\t5: Decode audio" << std::endl;
 		std::cout << "Alternatively, type 'exit' to exit." << std::endl;
 
-		std::cout << std::endl << "Select option [1, 2 or 3]: ";
+		std::cout << std::endl << "Select option [1, 2, 3, 4 or 5]: ";
 		std::string answer;
 		std::cin >> answer;
 
@@ -88,6 +97,14 @@ void MainMenu()
 		else if (answer == "3")
 		{
 			DisplayHeader();
+		}
+		else if (answer == "4")
+		{
+			EncodeAudio();
+		}
+		else if (answer == "5")
+		{
+			DecodeAudio();
 		}
 		else
 		{
@@ -178,7 +195,7 @@ struct RIFFChunk
 
 struct FMTChunk
 {
-	uint32_t id;
+	char id[4];
 	uint32_t size;
 	uint16_t audioformat;
 	uint16_t numChannels;
@@ -200,6 +217,32 @@ struct WAVHeader
 	FMTChunk fmt;
 	DataChunk data;
 };
+
+WAVHeader GetDefaultMonoHeader()
+{
+	WAVHeader header;
+
+	// RIFF
+	memcpy(&header.riff.id, "RIFF", sizeof("RIFF"));
+	header.riff.size = sizeof(WAVHeader);
+	memcpy(&header.fmt, "WAVE", sizeof("WAVE"));
+
+	// FMT
+	memcpy(&header.riff.id, "fmt ", sizeof("fmt "));
+	header.fmt.size = 16;
+	header.fmt.audioformat = 1;
+	header.fmt.numChannels = 1;
+	header.fmt.sampleRate = 44100;
+	header.fmt.byteRate = 88200;
+	header.fmt.blockAlign = 2;
+	header.fmt.bitsPerSample = 16;
+
+	// Data
+	memcpy(&header.data.id, "data", sizeof("data"));
+	header.data.size = 0;
+
+	return header;
+}
 
 void PrintHeader(const std::string& acFileBuffer)
 {
@@ -311,14 +354,14 @@ void EncryptFile()
 #ifdef FIXED_XOR
 		char xorChar = char(FIXED_XOR);
 #else
-		char xorChar = char(rand());
+		char xorChar = char(rand() % 5 - 10);
 #endif
 
 #ifdef DEBUG_SHOW_SEED
 		std::cout << std::to_string(int32_t(xorChar)) << " ";
 #endif
 
-		fileBytes[i] ^= xorChar;
+		fileBytes[i] += xorChar;
 	}
 
 #ifdef DEBUG_SHOW_SEED
@@ -396,13 +439,27 @@ void DecryptFile()
 
 	PrintHeader(fileBytes);
 
+	/*std::cout << "Overwriting header OwO" << std::endl;
+	WAVHeader header;
+	memcpy(&header, &fileBytes[0], sizeof(WAVHeader));
+	header.fmt.size = 16;
+	header.fmt.audioformat = 1;
+	header.fmt.numChannels = 1;
+	header.fmt.sampleRate = 44100;
+	header.fmt.byteRate = 88200;
+	header.fmt.blockAlign = 2;
+	header.fmt.bitsPerSample = 16;
+	memcpy(&fileBytes[0], &header, sizeof(WAVHeader));
+
+	PrintHeader(fileBytes);*/
+
 	srand(RANDOM_SEED);
 	for (size_t i = sizeof(WAVHeader); i < fileBytes.size(); ++i)
 	{
 #ifdef FIXED_XOR
-		fileBytes[i] ^= char(FIXED_XOR);
+		fileBytes[i] -= char(FIXED_XOR);
 #else
-		fileBytes[i] ^= char(rand());
+		fileBytes[i] -= char(rand() % 5 - 10);
 #endif
 	}
 
@@ -459,4 +516,368 @@ void DisplayHeader()
 
 	// Print result
 	PrintHeader(fileBytes);
+}
+
+void EncodeAudio()
+{
+	WAVHeader header = GetDefaultMonoHeader();
+
+	std::string buffer;
+
+	std::string content;
+	content.append("Once upon a time there were 3 MSc students trying to make their own encoding scheme, going against the general advice or not reinventing the wheel... :) It did not practically work so well but it's good a proof of concept regardless, as well it being a good learning experience. Hello Jaap and classmates!");
+
+	std::string payload;
+
+	std::cout << "Encoding text: \"";
+	for (auto i = 0; i < content.size(); ++i)
+	{
+		std::cout << content[i];
+		for (int32_t b = 0; b < BITS_PER_BYTE; ++b)
+		{
+			int32_t res = ((content[i] & (1 << b)) >> b);
+
+			/*if (res == 1)
+			{
+				std::cout << "1";
+			}
+			else
+			{
+				std::cout << "0";
+			}*/
+
+			for (int32_t j = 0; j < LENGTH_PER_BIT; ++j)
+			{
+				payload.push_back(res == 1 ? 0x7F : 0x00);
+			}
+		}
+	}
+	std::cout << "\". Done!" << std::endl;
+
+	//std::cout << "Payload: " << payload << std::endl;
+
+	header.riff.size += payload.size();
+	header.data.size += payload.size();
+
+	buffer.resize(sizeof(WAVHeader));
+	memcpy(&buffer[0], &header, sizeof(WAVHeader));
+
+	if (!payload.empty())
+	{
+		buffer.append(payload);
+	}
+
+	//std::cout << "Final buffer: " << buffer << std::endl;
+
+	// Save to file
+	std::cout << "Saving to encoded file..." << std::endl;
+	std::ofstream outputFile;
+	outputFile.open("encoded.wav", std::ios::binary | std::ios::trunc);
+	for (size_t i = 0; i < buffer.size(); ++i)
+	{
+		outputFile << buffer[i];
+	}
+	outputFile.close();
+
+	std::cout << "All done!" << std::endl;
+}
+
+void CompareBitstream(const std::string& aStreamA, const std::string& aStreamB)
+{
+	uint32_t total = 0;
+	uint32_t correct = 0;
+	uint32_t incorrect = 0;
+
+	for (auto i = 0; i < aStreamA.size(); ++i)
+	{
+		if (i >= aStreamB.size())
+		{
+			break;
+		}
+
+		if (aStreamA[i] == aStreamB[i])
+		{
+			correct++;
+		}
+		else
+		{
+			incorrect++;
+		}
+	}
+
+	total = correct + incorrect;
+
+	std::cout << "Bit stream comparison results:" << std::endl;
+	std::cout << "\tTotal bits:\t" << total << std::endl;
+	std::cout << "\tCorrect:\t" << correct << " (" << (100.f / total * correct) << "%)" << std::endl;
+	std::cout << "\tIncorrect:\t" << incorrect << " (" << (100.f / total * incorrect) << "%)" << std::endl;
+	std::cout << std::endl;
+}
+
+void DecodeAudio()
+{
+	// Fetch file to use
+	std::filesystem::path file;
+	while (true)
+	{
+		file = SelectFile();
+		if (file != std::filesystem::current_path())
+		{
+			break;
+		}
+	}
+
+	// Open file reader
+	std::ifstream inputFile(file.string().c_str(), std::ios::binary);
+	std::string fileBytes;
+
+	// Get file size
+	std::streampos begin, end;
+	begin = inputFile.tellg();
+	inputFile.seekg(0, std::ios::end);
+	end = inputFile.tellg();
+
+	// Read file data
+	std::stringstream fileData;
+	inputFile.seekg(0);
+	fileData << inputFile.rdbuf();
+	fileBytes = fileData.str();
+
+	// Print result
+	PrintHeader(fileBytes);
+
+	std::string bits;
+
+	bool isReadingZero = true;
+
+	char sampleVal[sizeof(int16_t)];
+	int32_t sampleIt = 0;
+
+	float averageBit = 0.0f;
+
+	int32_t bitIt = 0;
+	//LENGTH_PER_BIT
+
+	int32_t readIt = 0;
+	int32_t previous = 0;
+
+	int16_t high = INT16_MIN;
+	int16_t low = INT16_MAX;
+
+	for (auto i = sizeof(WAVHeader); i < fileBytes.size(); i += 1)
+	{
+		sampleVal[sampleIt] = fileBytes[i];
+		sampleIt++;
+		if (sampleIt >= sizeof(int16_t))
+		{
+			sampleIt = 0;
+
+			int16_t numSampleVal;
+			memcpy(&numSampleVal, &sampleVal[0], sizeof(int16_t));
+
+			if (numSampleVal >= 0)
+			{
+				high = numSampleVal;
+			}
+			
+			if (numSampleVal <= low)
+			{
+				low = numSampleVal;
+			}
+		}
+	}
+
+	std::cout << "High: " << high << " Low: " << low << std::endl;
+
+	sampleIt = 0;
+
+	uint32_t bitSteps = 0;
+
+	for (auto i = sizeof(WAVHeader); i < fileBytes.size(); i += 1)
+	{
+		bitSteps++;
+		sampleVal[sampleIt] = fileBytes[i];
+		sampleIt++;
+		if (sampleIt >= sizeof(int16_t))
+		{
+			sampleIt = 0;
+
+			int16_t numSampleVal;
+			memcpy(&numSampleVal, &sampleVal[0], sizeof(int16_t));
+
+			if (numSampleVal >= (INT16_MIN / 4))//INT16_MAX - 1000)
+			{
+				float count = roundf(float(bitSteps) / 1024);
+				if (count > 0.f)
+				{
+					bitSteps = 0;
+					for (auto ii = 0; ii < count; ++ii)
+					{
+						bits += '1';
+					}
+				}
+
+				isReadingZero = false;
+			}
+			else if (numSampleVal <= INT16_MIN)
+			{
+				float count = roundf(float(bitSteps) / 1024);
+				if (count > 0.f)
+				{
+					bitSteps = 0;
+					for (auto ii = 0; ii < count; ++ii)
+					{
+						bits += '0';
+					}
+				}
+				//isReadingZero = true;
+			}
+			//std::cout << "Now reading a " << (isReadingZero ? "0" : "1") << std::endl;
+		}
+
+		//averageBit += isReadingZero ? 0.0f : 1.0f;
+
+		/*bitIt++;
+		if (bitIt >= LENGTH_PER_BIT)
+		{
+			averageBit /= LENGTH_PER_BIT;
+
+			readIt++;
+
+			if (readIt % 2 == 0)
+			{
+				int32_t current = (fabsf(averageBit) >= 0.5f) ? 1 : 0;
+				current += previous;
+
+				if (current >= 1)
+				{
+					bits += '0';
+				}
+				else
+				{
+					bits += '1';
+				}
+			}
+			else
+			{
+				if (fabsf(averageBit) >= 0.5f)
+				{
+					previous = 1;
+				}
+				else
+				{
+					previous = 0;
+				}
+			}
+
+			averageBit = 0.0f;
+			bitIt = 0;
+		}*/
+
+		/*for (int32_t j = 0; j < LENGTH_PER_BIT; ++j)
+		{
+			numVal += (float)(fileBytes[i]);
+		}
+
+		floatVal[floatIt] = fileBytes[i];
+		floatIt++;
+		if (floatIt >= sizeof(int16_t))
+		{
+			floatIt = 0;
+
+			int16_t val;
+			memcpy(&val, &floatVal[0], sizeof(int16_t));
+			std::cout << "Val: " << val << std::endl;
+
+			//std::cout << "ID: " << (i - sizeof(WAVHeader)) << " | Byte: 0x" << std::hex << fileBytes[i] << " (" << std::dec << int32_t(fileBytes[i]) << ")" << std::endl;
+
+		}*/
+		/*char byte = fileBytes[i];
+		(void)byte;
+
+		if (isReadingZero)
+		{
+			if (byte == 0xFF)
+			{
+				isReadingZero = false;
+			}
+		}*/
+
+		/*float numVal = 0.f;
+
+		for (int32_t j = 0; j < LENGTH_PER_BIT; ++j)
+		{
+			numVal += (float)(fileBytes[i]);
+		}
+
+		numVal /= float(LENGTH_PER_BIT);
+
+		if (0x7F - numVal >= (0x7F / 2))
+		{
+			bits += '0';
+		}
+		else
+		{
+			bits += '1';
+		}*/
+	}
+
+	std::cout << "Collected " << bits.size() << " bits." << std::endl;
+
+	std::string result;
+	std::cout << "Result: \"";
+	for (int32_t i = 0; i < bits.size(); i += BITS_PER_BYTE)
+	{
+		if (i + BITS_PER_BYTE >= bits.size())
+		{
+			break;
+		}
+
+		char c = 0x00;
+		std::string bitString;
+		for (auto b = 0; b < BITS_PER_BYTE; ++b)
+		{
+			if (bits[i + b] == '1')
+			{
+				c |= 1UL << b;
+				bitString += "1";
+			}
+			else
+			{
+				c &= ~(1UL << b);
+				bitString += "0";
+			}
+		}
+
+		std::cout << c;// << bitString;
+		result += c;
+	}
+
+	std::cout << "\"." << std::endl;
+
+	std::cout << "Comparing bit streams..." << std::endl;
+	std::string originalContent;
+	originalContent.append("Once upon a time there were 3 MSc students trying to make their own encoding scheme, going against the general advice or not reinventing the wheel... :) It did not practically work so well but it's good a proof of concept regardless, as well it being a good learning experience. Hello Jaap and classmates!");
+
+	std::string originalStream;
+	for (auto i = 0; i < originalContent.size(); ++i)
+	{
+		for (int32_t b = 0; b < BITS_PER_BYTE; ++b)
+		{
+			int32_t res = ((originalContent[i] & (1 << b)) >> b);
+
+			if (res == 1)
+			{
+				originalStream += '1';
+			}
+			else
+			{
+				originalStream += '0';
+			}
+		}
+	}
+
+	CompareBitstream(bits, originalStream);
+
+	std::cout << std::endl << "All done!" << std::endl;
 }
